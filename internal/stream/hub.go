@@ -3,6 +3,7 @@ package stream
 import (
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -41,7 +42,11 @@ func (h *Hub) SetFrame(jpeg []byte) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for conn := range h.clients {
-		conn.WriteMessage(websocket.BinaryMessage, jpeg)
+		// Non-blocking: write in goroutine so slow clients don't stall capture
+		go func(c *websocket.Conn) {
+			c.SetWriteDeadline(time.Now().Add(time.Second))
+			c.WriteMessage(websocket.BinaryMessage, jpeg)
+		}(conn)
 	}
 }
 
@@ -59,7 +64,13 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request, onCmd CommandHand
 	}
 	h.mu.Lock()
 	h.clients[conn] = true
+	// Send last frame immediately so new clients don't wait for the next tick
+	lastFrame := h.frame
 	h.mu.Unlock()
+
+	if lastFrame != nil {
+		conn.WriteMessage(websocket.BinaryMessage, lastFrame)
+	}
 
 	go func() {
 		defer h.remove(conn)

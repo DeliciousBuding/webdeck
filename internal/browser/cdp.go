@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/chromedp/cdproto/input"
@@ -9,18 +10,34 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
-// ScreenshotJPEG captures a JPEG screenshot via CDP Page.captureScreenshot.
+// ScreenshotJPEG captures a JPEG screenshot via CDP. Retries once on page detach.
 func (b *Browser) ScreenshotJPEG(quality int) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(b.ctx, 5*time.Second)
+	defer cancel()
+
 	var buf []byte
-	err := chromedp.Run(b.ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+	err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
 		var err error
 		buf, err = page.CaptureScreenshot().
 			WithFormat(page.CaptureScreenshotFormatJpeg).
 			WithQuality(int64(quality)).
-			WithClip(&page.Viewport{X: 0, Y: 0, Width: GameW, Height: GameH, Scale: 1}).
 			Do(ctx)
 		return err
 	}))
+	// Retry once on page detach
+	if err != nil && strings.Contains(err.Error(), "Not attached") {
+		time.Sleep(500 * time.Millisecond)
+		ctx2, cancel2 := context.WithTimeout(b.ctx, 5*time.Second)
+		defer cancel2()
+		err = chromedp.Run(ctx2, chromedp.ActionFunc(func(ctx context.Context) error {
+			var err2 error
+			buf, err2 = page.CaptureScreenshot().
+				WithFormat(page.CaptureScreenshotFormatJpeg).
+				WithQuality(int64(quality)).
+				Do(ctx)
+			return err2
+		}))
+	}
 	return buf, err
 }
 

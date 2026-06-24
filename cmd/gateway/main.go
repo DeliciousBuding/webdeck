@@ -4,7 +4,7 @@ import (
 	"context"
 	"embed"
 	"flag"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -22,19 +22,19 @@ var (
 	authFile  = flag.String("auth", "cloud_auth.json", "Cookie JSON file")
 	fps       = flag.Int("fps", 30, "Target capture frame rate")
 	jpegQ     = flag.Int("jpeg-quality", 75, "JPEG quality 1-100")
-	startURL  = flag.String("start-url", "", "Navigate to URL on startup (optional, for standalone use)")
+	startURL  = flag.String("start-url", "", "Navigate to URL on startup (optional)")
 )
 
 func main() {
 	flag.Parse()
+	slog.Info("starting", "port", *port, "fps", *fps)
 
-	log.Printf("[main] creating device (chrome)...")
 	dev, err := device.NewChrome(*chromeURL, *authFile)
 	if err != nil {
-		log.Fatalf("[main] device: %v", err)
+		slog.Error("device create failed", "err", err)
+		os.Exit(1)
 	}
 
-	// Graceful shutdown on SIGINT/SIGTERM
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -45,13 +45,11 @@ func main() {
 		Frontend: frontend,
 	})
 
-	log.Printf("[main] ready → http://localhost:%d", *port)
 	if err := srv.Start(ctx); err != nil {
-		log.Printf("[main] server: %v", err)
+		slog.Error("server error", "err", err)
 	}
 
-	// Clean shutdown
-	log.Printf("[main] shutting down...")
+	slog.Info("shutting down")
 	dev.Stop(ctx)
-	log.Printf("[main] done")
+	slog.Info("bye")
 }

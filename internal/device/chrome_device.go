@@ -3,7 +3,7 @@ package device
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -144,7 +144,7 @@ func (d *ChromeDevice) Start(ctx context.Context, url string) error {
 	d.mu.Lock()
 	d.state = "RUNNING"
 	d.mu.Unlock()
-	log.Printf("[device] state → RUNNING (%s)", url)
+	slog.Info("state change", "state", "RUNNING", "url", url)
 	return nil
 }
 
@@ -175,7 +175,7 @@ func (d *ChromeDevice) Reset(ctx context.Context) error {
 	d.mu.Lock()
 	d.state = "INIT"
 	d.mu.Unlock()
-	log.Printf("[device] reset #%d complete", d.recover)
+	slog.Info("reset complete", "count", d.recover)
 	return nil
 }
 

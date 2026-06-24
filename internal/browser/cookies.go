@@ -3,7 +3,7 @@ package browser
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -29,12 +29,12 @@ type Cookie struct {
 func (b *Browser) loadCookies(path string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Printf("[cookies] read: %v", err)
+		slog.Info("cookie read failed", "err", err)
 		return
 	}
 	var cf CookieFile
 	if err := json.Unmarshal(data, &cf); err != nil {
-		log.Printf("[cookies] parse: %v", err)
+		slog.Info("cookie parse failed", "err", err)
 		return
 	}
 	for _, ck := range cf.Cookies {
@@ -54,5 +54,5 @@ func (b *Browser) loadCookies(path string) {
 				Do(ctx)
 		}))
 	}
-	log.Printf("[cookies] loaded %d", len(cf.Cookies))
+	slog.Info("cookies loaded", "count", len(cf.Cookies))
 }

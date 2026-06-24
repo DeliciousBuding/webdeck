@@ -16,9 +16,11 @@ const (
 
 // Browser manages a headless Chrome instance via chromedp/CDP.
 type Browser struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	alive  atomic.Bool
+	alloc   context.Context // allocator context (lives forever)
+	ctx     context.Context // current chromedp context (replaced after navigation)
+	cancel  context.CancelFunc
+	alive   atomic.Bool
+	authFile string
 }
 
 // NewLocal launches a headless Chrome with mobile emulation.
@@ -33,45 +35,47 @@ func NewLocal(authFile string) (*Browser, error) {
 	)
 
 	allocCtx, _ := chromedp.NewExecAllocator(context.Background(), opts...)
-	ctx, cancel := chromedp.NewContext(allocCtx, chromedp.WithLogf(func(string, ...interface{}) {}))
-
-	if err := chromedp.Run(ctx); err != nil {
-		cancel()
-		return nil, fmt.Errorf("chrome launch: %w", err)
-	}
-
-	b := &Browser{ctx: ctx, cancel: cancel}
-	b.alive.Store(true)
-	b.init(authFile)
-	return b, nil
+	return newBrowser(allocCtx, authFile)
 }
 
 // NewRemote connects to an existing Chrome via --remote-debugging-port.
 func NewRemote(chromeURL, authFile string) (*Browser, error) {
-	allocCtx, cancel := chromedp.NewRemoteAllocator(context.Background(), chromeURL)
-	ctx, _ := chromedp.NewContext(allocCtx, chromedp.WithLogf(func(string, ...interface{}) {}))
+	allocCtx, _ := chromedp.NewRemoteAllocator(context.Background(), chromeURL)
+	// NOTE: do NOT cancel allocCtx — it must outlive all chromedp contexts
+	return newBrowser(allocCtx, authFile)
+}
+
+func newBrowser(allocCtx context.Context, authFile string) (*Browser, error) {
+	ctx, cancel := chromedp.NewContext(allocCtx, chromedp.WithLogf(func(string, ...interface{}) {}))
 
 	if err := chromedp.Run(ctx); err != nil {
 		cancel()
-		return nil, fmt.Errorf("connect chrome: %w", err)
+		return nil, fmt.Errorf("chrome init: %w", err)
 	}
 
-	b := &Browser{ctx: ctx, cancel: cancel}
+	b := &Browser{alloc: allocCtx, ctx: ctx, cancel: cancel, authFile: authFile}
 	b.alive.Store(true)
-	b.init(authFile)
+	b.init()
 	return b, nil
 }
 
 // init runs common post-creation setup: viewport, UA, stealth, cookies.
-func (b *Browser) init(authFile string) {
+func (b *Browser) init() {
 	chromedp.Run(b.ctx,
 		chromedp.EmulateViewport(GameW, GameH, chromedp.EmulateMobile, chromedp.EmulateTouch),
 		emulation.SetUserAgentOverride(mobileUA).WithAcceptLanguage("zh-CN"),
 		chromedp.Evaluate(stealthJS, nil),
 	)
-	if authFile != "" {
-		b.loadCookies(authFile)
+	if b.authFile != "" {
+		b.loadCookies(b.authFile)
 	}
+}
+
+// refreshCtx creates a new chromedp context from the allocator.
+// Called after navigation without cancelling the old one.
+func (b *Browser) refreshCtx() {
+	b.ctx, b.cancel = chromedp.NewContext(b.alloc, chromedp.WithLogf(func(string, ...interface{}) {}))
+	b.init()
 }
 
 // IsAlive reports whether the browser is still running.
@@ -85,9 +89,6 @@ func (b *Browser) Close() {
 		b.cancel = nil
 	}
 }
-
-// Ctx returns the chromedp context for advanced use.
-func (b *Browser) Ctx() context.Context { return b.ctx }
 
 const mobileUA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
 

@@ -1,9 +1,8 @@
 import { useState, useRef, type MouseEvent as ReactMouseEvent } from 'react'
-import { useWebSocket, useFPS, useKeyboard } from './hooks'
+import { useWebSocket, useKeyboard } from './hooks'
 
 const W = 1280, H = 720
 
-// ── Coordinate math ──
 function toGame(e: ReactMouseEvent, el: HTMLElement) {
   const r = el.getBoundingClientRect()
   const scale = Math.min(r.width / W, r.height / H)
@@ -15,7 +14,6 @@ function toGame(e: ReactMouseEvent, el: HTMLElement) {
   }
 }
 
-// ── StatusBar ──
 function StatusBar({ connected, fps }: { connected: boolean; fps: number }) {
   return (
     <header className="bar">
@@ -29,15 +27,13 @@ function StatusBar({ connected, fps }: { connected: boolean; fps: number }) {
   )
 }
 
-// ── StreamView ──
-function StreamView() {
+export default function App() {
   const [swiping, setSwiping] = useState(false)
   const [pos, setPos] = useState('')
   const [swStart, setSwStart] = useState<{ x: number; y: number } | null>(null)
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([])
   const wrapRef = useRef<HTMLDivElement>(null)
-  const { connected, send } = useWebSocket()
-  const fps = useFPS()
+  const { connected, send, frameUrl, fps } = useWebSocket()
   useKeyboard(send)
   const n = useRef(0)
 
@@ -69,7 +65,7 @@ function StreamView() {
     <>
       <StatusBar connected={connected} fps={fps} />
       <main ref={wrapRef} className="viewport" onClick={handleClick} onMouseDown={handleDown} onMouseUp={handleUp}>
-        <img id="stream" src="/stream" alt="game stream" />
+        {frameUrl ? <img id="stream" src={frameUrl} alt="game stream" /> : <div className="stream-placeholder" />}
         {ripples.map(r => <div key={r.id} className="ripple" style={{ left: r.x, top: r.y }} />)}
         <div className="controls">
           <span className="coords">{pos || '—'}</span>
@@ -83,5 +79,3 @@ function StreamView() {
     </>
   )
 }
-
-export default StreamView

@@ -6,20 +6,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	"webdeck/internal/device"
+	"webdeck/internal/logx"
 	"webdeck/internal/stream"
 )
 
 // Config holds server configuration.
 type Config struct {
-	Port    int
-	FPS     int
-	JPEGQ   int
+	Port     int
+	FPS      int
+	JPEGQ    int
 	Frontend embed.FS
 }
 
@@ -40,17 +41,12 @@ func New(dev device.Device, cfg Config) *Server {
 		mux: http.NewServeMux(),
 	}
 
-	// Frontend
 	frontendFS, _ := fs.Sub(cfg.Frontend, "frontend/dist")
 	s.mux.Handle("/", http.FileServer(http.FS(frontendFS)))
 
-	// WebSocket
 	s.mux.HandleFunc("/ws", s.handleWS)
-
-	// MJPEG stream
 	s.mux.HandleFunc("/stream", s.handleStream)
 
-	// v1 stable API
 	s.mux.HandleFunc("/api/v1/health", s.handleV1Health)
 	s.mux.HandleFunc("/api/v1/device/info", s.handleV1DeviceInfo)
 	s.mux.HandleFunc("/api/v1/device/screenshot", s.handleV1Screenshot)
@@ -65,18 +61,24 @@ func New(dev device.Device, cfg Config) *Server {
 	return s
 }
 
-// Start begins the HTTP server and capture loop. Blocks until ctx is cancelled,
-// then shuts down gracefully.
+// Start begins the HTTP server and capture loop. Blocks until ctx is cancelled.
 func (s *Server) Start(ctx context.Context) error {
-	// Capture loop
 	interval := time.Second / time.Duration(s.cfg.FPS)
 	stopCapture := make(chan struct{})
+
+	// Capture loop
 	go func() {
 		defer close(stopCapture)
-		log.Printf("[server] capture %d FPS, JPEG Q%d", s.cfg.FPS, s.cfg.JPEGQ)
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("capture panic", "panic", r)
+			}
+		}()
+		slog.Info("capture started", "fps", s.cfg.FPS, "quality", s.cfg.JPEGQ)
 		for {
 			select {
 			case <-ctx.Done():
+				slog.Info("capture stopped")
 				return
 			default:
 			}
@@ -85,10 +87,11 @@ func (s *Server) Start(ctx context.Context) error {
 				Format: "jpeg", Quality: s.cfg.JPEGQ,
 			})
 			if err != nil {
-				log.Printf("[server] screenshot: %v", err)
+				slog.Error("screenshot failed", "err", err)
 				time.Sleep(interval)
 				continue
 			}
+			logx.Frame(len(jpeg))
 			s.hub.SetFrame(jpeg)
 			if elapsed := time.Since(t0); elapsed < interval {
 				time.Sleep(interval - elapsed)
@@ -96,17 +99,19 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}()
 
+	// Health logging
+	logx.StartHealth(stopCapture)
+
 	addr := fmt.Sprintf(":%d", s.cfg.Port)
 	srv := &http.Server{Addr: addr, Handler: s.mux}
 
-	// Run HTTP server in background
 	go func() {
 		<-ctx.Done()
-		log.Printf("[server] shutting down...")
+		slog.Info("server shutting down")
 		srv.Shutdown(context.Background())
 	}()
 
-	log.Printf("[server] listening on %s", addr)
+	slog.Info("listening", "addr", addr)
 	err := srv.ListenAndServe()
 	<-stopCapture
 	if err == http.ErrServerClosed {
@@ -166,10 +171,10 @@ func (s *Server) handleV1Tap(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleV1Swipe(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		X1          int `json:"x1"`
-		Y1          int `json:"y1"`
-		X2          int `json:"x2"`
-		Y2          int `json:"y2"`
+		X1         int `json:"x1"`
+		Y1         int `json:"y1"`
+		X2         int `json:"x2"`
+		Y2         int `json:"y2"`
 		DurationMs int `json:"duration_ms"`
 	}
 	if r.Method == "POST" {
@@ -224,6 +229,7 @@ func (s *Server) handleV1AppStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing url", 400)
 		return
 	}
+	slog.Info("navigating", "url", req.URL)
 	if err := s.dev.Start(r.Context(), req.URL); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -267,6 +273,7 @@ func (s *Server) handleV1SessionReset(w http.ResponseWriter, r *http.Request) {
 // ── WebSocket ──
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
+	slog.Info("ws connect")
 	s.hub.HandleWS(w, r, func(cmd stream.Cmd) {
 		switch cmd.Type {
 		case "click":
@@ -305,8 +312,6 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(interval)
 	}
 }
-
-// ── helpers ──
 
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")

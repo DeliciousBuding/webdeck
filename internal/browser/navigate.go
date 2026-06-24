@@ -1,18 +1,31 @@
 package browser
 
 import (
+	
+	"context"
+	"log/slog"
+	"time"
+
 	"github.com/chromedp/chromedp"
 )
 
-// Navigate loads a URL in the browser. The caller (SRC) decides what URL
-// to navigate to — the Gateway does not know about game logic.
+// Navigate loads a URL and waits for page stability.
 func (b *Browser) Navigate(url string) error {
-	return chromedp.Run(b.ctx, chromedp.Navigate(url))
+	slog.Info("navigating", "url", url)
+	return chromedp.Run(b.ctx,
+		chromedp.Navigate(url),
+		chromedp.WaitVisible("body", chromedp.ByQuery),
+		chromedp.Sleep(3*time.Second),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			var title string
+			chromedp.Title(&title).Do(ctx)
+			slog.Info("page ready", "title", title)
+			return nil
+		}),
+	)
 }
 
 // DismissHTML evaluates arbitrary JS to dismiss overlays.
-// Used by WebUI debug controls and compat API. The JS is
-// caller-supplied, not hardcoded to any specific site.
 func (b *Browser) DismissHTML() {
 	chromedp.Run(b.ctx,
 		chromedp.Evaluate(`
