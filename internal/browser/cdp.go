@@ -42,7 +42,14 @@ func (b *Browser) Click(x, y int) error {
 }
 
 // Swipe performs a CDP touch swipe sequence.
-func (b *Browser) Swipe(x1, y1, x2, y2 int) error {
+// durationMs controls the total gesture time (0 = default 300ms).
+func (b *Browser) Swipe(x1, y1, x2, y2 int, durationMs int) error {
+	if durationMs <= 0 {
+		durationMs = 300
+	}
+	steps := 10
+	stepSleep := time.Duration(durationMs/steps) * time.Millisecond
+
 	return chromedp.Run(b.ctx,
 		chromedp.Evaluate(`window.focus()`, nil),
 		chromedp.Sleep(30*time.Millisecond),
@@ -53,7 +60,6 @@ func (b *Browser) Swipe(x1, y1, x2, y2 int) error {
 		}),
 		chromedp.Sleep(30*time.Millisecond),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			steps := 10
 			for i := 1; i <= steps; i++ {
 				t := float64(i) / float64(steps)
 				cx := float64(x1) + (float64(x2)-float64(x1))*t
@@ -61,7 +67,7 @@ func (b *Browser) Swipe(x1, y1, x2, y2 int) error {
 				input.DispatchTouchEvent(input.TouchMove, []*input.TouchPoint{
 					{X: cx, Y: cy, ID: 1, RadiusX: 5, RadiusY: 5, Force: 1},
 				}).Do(ctx)
-				time.Sleep(20 * time.Millisecond)
+				time.Sleep(stepSleep)
 			}
 			return nil
 		}),

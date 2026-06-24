@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"src-web-gateway/internal/browser"
@@ -11,6 +12,7 @@ import (
 
 // ChromeDevice implements Device over Chrome DevTools Protocol.
 type ChromeDevice struct {
+	mu      sync.Mutex
 	browser *browser.Browser
 	state   string
 	recover int
@@ -43,6 +45,9 @@ func NewChrome(chromeURL, authFile string) (*ChromeDevice, error) {
 
 // Info returns fixed coordinate contract.
 func (d *ChromeDevice) Info(ctx context.Context) (*DeviceInfo, error) {
+	d.mu.Lock()
+	ready := d.state == "RUNNING"
+	d.mu.Unlock()
 	return &DeviceInfo{
 		Width:            1280,
 		Height:           720,
@@ -51,23 +56,27 @@ func (d *ChromeDevice) Info(ctx context.Context) (*DeviceInfo, error) {
 		ScreenshotFormat: "jpeg",
 		InputCoordinate:  "screenshot_pixel",
 		Backend:          "chrome-cdp",
-		Ready:            d.state == "RUNNING",
+		Ready:            ready,
 	}, nil
 }
 
 // Health returns live status.
 func (d *ChromeDevice) Health(ctx context.Context) HealthStatus {
+	d.mu.Lock()
+	state := d.state
+	recover := d.recover
 	frameAge := time.Since(d.lastFrameTime)
 	inputAge := time.Since(d.lastInputTime)
+	d.mu.Unlock()
 	return HealthStatus{
-		OK:           d.state == "RUNNING",
-		State:        d.state,
+		OK:           state == "RUNNING",
+		State:        state,
 		ChromeAlive:  d.browser.IsAlive(),
 		CDPConnected: d.browser.IsAlive(),
-		PageReady:    d.state == "RUNNING",
+		PageReady:    state == "RUNNING",
 		LastFrameAge: frameAge,
 		LastInputAge: inputAge,
-		RecoverCount: d.recover,
+		RecoverCount: recover,
 	}
 }
 
@@ -78,7 +87,9 @@ func (d *ChromeDevice) Screenshot(ctx context.Context, opts ScreenshotOptions) (
 	}
 	jpeg, err := d.browser.ScreenshotJPEG(opts.Quality)
 	if err == nil {
+		d.mu.Lock()
 		d.lastFrameTime = time.Now()
+		d.mu.Unlock()
 	}
 	return jpeg, err
 }
@@ -87,7 +98,9 @@ func (d *ChromeDevice) Screenshot(ctx context.Context, opts ScreenshotOptions) (
 func (d *ChromeDevice) Tap(ctx context.Context, x, y int) error {
 	err := d.browser.Click(x, y)
 	if err == nil {
+		d.mu.Lock()
 		d.lastInputTime = time.Now()
+		d.mu.Unlock()
 	}
 	return err
 }
@@ -97,9 +110,11 @@ func (d *ChromeDevice) Swipe(ctx context.Context, x1, y1, x2, y2, durationMs int
 	if durationMs <= 0 {
 		durationMs = 300
 	}
-	err := d.browser.Swipe(x1, y1, x2, y2)
+	err := d.browser.Swipe(x1, y1, x2, y2, durationMs)
 	if err == nil {
+		d.mu.Lock()
 		d.lastInputTime = time.Now()
+		d.mu.Unlock()
 	}
 	return err
 }
@@ -108,26 +123,36 @@ func (d *ChromeDevice) Swipe(ctx context.Context, x1, y1, x2, y2, durationMs int
 func (d *ChromeDevice) Key(ctx context.Context, key string) error {
 	err := d.browser.Key(key)
 	if err == nil {
+		d.mu.Lock()
 		d.lastInputTime = time.Now()
+		d.mu.Unlock()
 	}
 	return err
 }
 
 // Start navigates to cloud game and enters gameplay.
 func (d *ChromeDevice) Start(ctx context.Context) error {
+	d.mu.Lock()
 	d.state = "PAGE_LOADING"
+	d.mu.Unlock()
 	if err := d.browser.Navigate(); err != nil {
+		d.mu.Lock()
 		d.state = "DEGRADED"
+		d.mu.Unlock()
 		return fmt.Errorf("start: %w", err)
 	}
+	d.mu.Lock()
 	d.state = "RUNNING"
+	d.mu.Unlock()
 	log.Printf("[device] state → RUNNING")
 	return nil
 }
 
 // Stop closes the game session.
 func (d *ChromeDevice) Stop(ctx context.Context) error {
+	d.mu.Lock()
 	d.state = "STOPPED"
+	d.mu.Unlock()
 	d.browser.Close()
 	return nil
 }
@@ -140,12 +165,16 @@ func (d *ChromeDevice) Restart(ctx context.Context) error {
 
 // Reset destroys and recreates the browser runtime.
 func (d *ChromeDevice) Reset(ctx context.Context) error {
+	d.mu.Lock()
 	d.state = "RECOVERING"
 	d.recover++
+	d.mu.Unlock()
 	d.browser.Close()
 	// Re-create browser — for now, caller must restart the whole process
 	// TODO: full subprocess restart
+	d.mu.Lock()
 	d.state = "INIT"
+	d.mu.Unlock()
 	log.Printf("[device] reset #%d complete", d.recover)
 	return nil
 }

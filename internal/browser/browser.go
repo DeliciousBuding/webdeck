@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
@@ -17,7 +18,7 @@ const (
 type Browser struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	alive  bool
+	alive  atomic.Bool
 }
 
 // NewLocal launches a headless Chrome with mobile emulation.
@@ -39,18 +40,9 @@ func NewLocal(authFile string) (*Browser, error) {
 		return nil, fmt.Errorf("chrome launch: %w", err)
 	}
 
-	b := &Browser{ctx: ctx, cancel: cancel, alive: true}
-
-	chromedp.Run(ctx,
-		chromedp.EmulateViewport(GameW, GameH, chromedp.EmulateMobile, chromedp.EmulateTouch),
-		emulation.SetUserAgentOverride(mobileUA).WithAcceptLanguage("zh-CN"),
-		chromedp.Evaluate(stealthJS, nil),
-	)
-
-	if authFile != "" {
-		b.loadCookies(authFile)
-	}
-
+	b := &Browser{ctx: ctx, cancel: cancel}
+	b.alive.Store(true)
+	b.init(authFile)
 	return b, nil
 }
 
@@ -64,27 +56,30 @@ func NewRemote(chromeURL, authFile string) (*Browser, error) {
 		return nil, fmt.Errorf("connect chrome: %w", err)
 	}
 
-	b := &Browser{ctx: ctx, cancel: cancel, alive: true}
+	b := &Browser{ctx: ctx, cancel: cancel}
+	b.alive.Store(true)
+	b.init(authFile)
+	return b, nil
+}
 
-	chromedp.Run(ctx,
+// init runs common post-creation setup: viewport, UA, stealth, cookies.
+func (b *Browser) init(authFile string) {
+	chromedp.Run(b.ctx,
 		chromedp.EmulateViewport(GameW, GameH, chromedp.EmulateMobile, chromedp.EmulateTouch),
 		emulation.SetUserAgentOverride(mobileUA).WithAcceptLanguage("zh-CN"),
 		chromedp.Evaluate(stealthJS, nil),
 	)
-
 	if authFile != "" {
 		b.loadCookies(authFile)
 	}
-
-	return b, nil
 }
 
 // IsAlive reports whether the browser is still running.
-func (b *Browser) IsAlive() bool { return b.alive }
+func (b *Browser) IsAlive() bool { return b.alive.Load() }
 
 // Close shuts down the browser.
 func (b *Browser) Close() {
-	b.alive = false
+	b.alive.Store(false)
 	if b.cancel != nil {
 		b.cancel()
 	}

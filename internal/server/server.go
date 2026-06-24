@@ -57,6 +57,7 @@ func New(dev device.Device, cfg Config) *Server {
 	s.mux.HandleFunc("/api/v1/input/swipe", s.handleV1Swipe)
 	s.mux.HandleFunc("/api/v1/input/key", s.handleV1Key)
 	s.mux.HandleFunc("/api/v1/app/start", s.handleV1AppStart)
+	s.mux.HandleFunc("/api/v1/app/stop", s.handleV1AppStop)
 	s.mux.HandleFunc("/api/v1/app/restart", s.handleV1AppRestart)
 	s.mux.HandleFunc("/api/v1/session/reset", s.handleV1SessionReset)
 
@@ -133,12 +134,18 @@ func (s *Server) handleV1Tap(w http.ResponseWriter, r *http.Request) {
 		Y int `json:"y"`
 	}
 	if r.Method == "POST" {
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", 400)
+			return
+		}
 	} else {
 		req.X, _ = strconv.Atoi(r.URL.Query().Get("x"))
 		req.Y, _ = strconv.Atoi(r.URL.Query().Get("y"))
 	}
-	s.dev.Tap(r.Context(), req.X, req.Y)
+	if err := s.dev.Tap(r.Context(), req.X, req.Y); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	fmt.Fprint(w, "ok")
 }
 
@@ -151,7 +158,10 @@ func (s *Server) handleV1Swipe(w http.ResponseWriter, r *http.Request) {
 		DurationMs int `json:"duration_ms"`
 	}
 	if r.Method == "POST" {
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", 400)
+			return
+		}
 	} else {
 		req.X1, _ = strconv.Atoi(r.URL.Query().Get("x1"))
 		req.Y1, _ = strconv.Atoi(r.URL.Query().Get("y1"))
@@ -161,7 +171,10 @@ func (s *Server) handleV1Swipe(w http.ResponseWriter, r *http.Request) {
 	if req.DurationMs <= 0 {
 		req.DurationMs = 300
 	}
-	s.dev.Swipe(r.Context(), req.X1, req.Y1, req.X2, req.Y2, req.DurationMs)
+	if err := s.dev.Swipe(r.Context(), req.X1, req.Y1, req.X2, req.Y2, req.DurationMs); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	fmt.Fprint(w, "ok")
 }
 
@@ -170,16 +183,35 @@ func (s *Server) handleV1Key(w http.ResponseWriter, r *http.Request) {
 		Key string `json:"key"`
 	}
 	if r.Method == "POST" {
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", 400)
+			return
+		}
 	} else {
 		req.Key = r.URL.Query().Get("k")
 	}
-	s.dev.Key(r.Context(), req.Key)
+	if err := s.dev.Key(r.Context(), req.Key); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	fmt.Fprint(w, "ok")
 }
 
 func (s *Server) handleV1AppStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
 	err := s.dev.Start(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	fmt.Fprint(w, "ok")
+}
+
+func (s *Server) handleV1AppStop(w http.ResponseWriter, r *http.Request) {
+	err := s.dev.Stop(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
