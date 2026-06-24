@@ -1,3 +1,4 @@
 src-web-gateway.exe
 cloud_auth.json
 *.exe
+*.log
