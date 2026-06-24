@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"time"
 
-	"src-web-gateway/internal/device"
-	"src-web-gateway/internal/stream"
+	"webdeck/internal/device"
+	"webdeck/internal/stream"
 )
 
 // Config holds server configuration.

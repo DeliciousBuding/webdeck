@@ -1,4 +1,4 @@
-module src-web-gateway
+module webdeck
 
 go 1.22
 

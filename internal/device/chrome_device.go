@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"src-web-gateway/internal/browser"
+	"webdeck/internal/browser"
 )
 
 // ChromeDevice implements Device over Chrome DevTools Protocol.

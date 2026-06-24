@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"src-web-gateway/internal/device"
-	"src-web-gateway/internal/server"
+	"webdeck/internal/device"
+	"webdeck/internal/server"
 )
 
 //go:embed frontend/*

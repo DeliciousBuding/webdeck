@@ -1,11 +1,11 @@
-# src-web-gateway — Docker Compose (debug mode)
+# webdeck — Docker Compose (debug mode)
 # Chrome + Gateway 双容器，可分别查看日志
 #
 # Debug mode (default):
 #   docker compose up --build
 #
 # Production mode (single container):
-#   docker build -t src-web-gateway . && docker run -p 8090:8090 -v ./cloud_auth.json:/app/cloud_auth.json src-web-gateway
+#   docker build -t webdeck . && docker run -p 8090:8090 -v ./cloud_auth.json:/app/cloud_auth.json webdeck
 
 services:
   chrome:

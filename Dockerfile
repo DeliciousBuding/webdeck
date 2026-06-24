@@ -1,12 +1,12 @@
-# src-web-gateway — Production Dockerfile
+# webdeck — Production Dockerfile
 # Single container: Gateway + Chromium subprocess
 #
 # Build:
-#   docker build -t src-web-gateway .
+#   docker build -t webdeck .
 #
 # Run:
-#   docker run -p 8090:8090 -v ./cloud_auth.json:/app/cloud_auth.json src-web-gateway
-#   docker run -p 8090:8090 -v ./cloud_auth.json:/app/cloud_auth.json src-web-gateway --fps 15 --jpeg-quality 60
+#   docker run -p 8090:8090 -v ./cloud_auth.json:/app/cloud_auth.json webdeck
+#   docker run -p 8090:8090 -v ./cloud_auth.json:/app/cloud_auth.json webdeck --fps 15 --jpeg-quality 60
 
 # ── Build stage ──
 FROM golang:1.22-alpine AS build
