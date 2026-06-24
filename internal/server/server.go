@@ -73,13 +73,21 @@ func New(dev device.Device, cfg Config) *Server {
 	return s
 }
 
-// Start begins the HTTP server and capture loop.
-func (s *Server) Start() error {
+// Start begins the HTTP server and capture loop. Blocks until ctx is cancelled,
+// then shuts down gracefully.
+func (s *Server) Start(ctx context.Context) error {
 	// Capture loop
 	interval := time.Second / time.Duration(s.cfg.FPS)
+	stopCapture := make(chan struct{})
 	go func() {
+		defer close(stopCapture)
 		log.Printf("[server] capture %d FPS, JPEG Q%d", s.cfg.FPS, s.cfg.JPEGQ)
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			t0 := time.Now()
 			jpeg, err := s.dev.Screenshot(context.Background(), device.ScreenshotOptions{
 				Format: "jpeg", Quality: s.cfg.JPEGQ,
@@ -97,8 +105,22 @@ func (s *Server) Start() error {
 	}()
 
 	addr := fmt.Sprintf(":%d", s.cfg.Port)
+	srv := &http.Server{Addr: addr, Handler: s.mux}
+
+	// Run HTTP server in background
+	go func() {
+		<-ctx.Done()
+		log.Printf("[server] shutting down...")
+		srv.Shutdown(context.Background())
+	}()
+
 	log.Printf("[server] listening on %s", addr)
-	return http.ListenAndServe(addr, s.mux)
+	err := srv.ListenAndServe()
+	<-stopCapture
+	if err == http.ErrServerClosed {
+		return nil
+	}
+	return err
 }
 
 // ── v1 API handlers ──

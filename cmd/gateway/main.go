@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"flag"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"src-web-gateway/internal/device"
 	"src-web-gateway/internal/server"
@@ -28,12 +32,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("[main] device: %v", err)
 	}
-	defer dev.Stop(nil)
 
 	log.Printf("[main] starting cloud game...")
 	if err := dev.Start(nil); err != nil {
 		log.Fatalf("[main] navigate: %v", err)
 	}
+
+	// Graceful shutdown on SIGINT/SIGTERM
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	srv := server.New(dev, server.Config{
 		Port:     *port,
@@ -43,5 +50,12 @@ func main() {
 	})
 
 	log.Printf("[main] ready → http://localhost:%d", *port)
-	log.Fatal(srv.Start())
+	if err := srv.Start(ctx); err != nil {
+		log.Printf("[main] server: %v", err)
+	}
+
+	// Clean shutdown
+	log.Printf("[main] shutting down...")
+	dev.Stop(ctx)
+	log.Printf("[main] done")
 }
