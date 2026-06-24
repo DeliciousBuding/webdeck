@@ -13,7 +13,7 @@ import (
 	"webdeck/internal/server"
 )
 
-//go:embed frontend/*
+//go:embed frontend/dist/*
 var frontend embed.FS
 
 var (

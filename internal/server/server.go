@@ -41,7 +41,7 @@ func New(dev device.Device, cfg Config) *Server {
 	}
 
 	// Frontend
-	frontendFS, _ := fs.Sub(cfg.Frontend, "frontend")
+	frontendFS, _ := fs.Sub(cfg.Frontend, "frontend/dist")
 	s.mux.Handle("/", http.FileServer(http.FS(frontendFS)))
 
 	// WebSocket
