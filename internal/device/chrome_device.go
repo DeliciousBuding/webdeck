@@ -130,12 +130,12 @@ func (d *ChromeDevice) Key(ctx context.Context, key string) error {
 	return err
 }
 
-// Start navigates to cloud game and enters gameplay.
-func (d *ChromeDevice) Start(ctx context.Context) error {
+// Start navigates to the given URL.
+func (d *ChromeDevice) Start(ctx context.Context, url string) error {
 	d.mu.Lock()
 	d.state = "PAGE_LOADING"
 	d.mu.Unlock()
-	if err := d.browser.Navigate(); err != nil {
+	if err := d.browser.Navigate(url); err != nil {
 		d.mu.Lock()
 		d.state = "DEGRADED"
 		d.mu.Unlock()
@@ -144,11 +144,11 @@ func (d *ChromeDevice) Start(ctx context.Context) error {
 	d.mu.Lock()
 	d.state = "RUNNING"
 	d.mu.Unlock()
-	log.Printf("[device] state → RUNNING")
+	log.Printf("[device] state → RUNNING (%s)", url)
 	return nil
 }
 
-// Stop closes the game session.
+// Stop closes the browser.
 func (d *ChromeDevice) Stop(ctx context.Context) error {
 	d.mu.Lock()
 	d.state = "STOPPED"
@@ -157,10 +157,10 @@ func (d *ChromeDevice) Stop(ctx context.Context) error {
 	return nil
 }
 
-// Restart stops then starts.
-func (d *ChromeDevice) Restart(ctx context.Context) error {
+// Restart stops then starts with the given URL.
+func (d *ChromeDevice) Restart(ctx context.Context, url string) error {
 	d.Stop(ctx)
-	return d.Start(ctx)
+	return d.Start(ctx, url)
 }
 
 // Reset destroys and recreates the browser runtime.

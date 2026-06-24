@@ -22,6 +22,7 @@ var (
 	authFile  = flag.String("auth", "cloud_auth.json", "Cookie JSON file")
 	fps       = flag.Int("fps", 30, "Target capture frame rate")
 	jpegQ     = flag.Int("jpeg-quality", 75, "JPEG quality 1-100")
+	startURL  = flag.String("start-url", "", "Navigate to URL on startup (optional, for standalone use)")
 )
 
 func main() {
@@ -31,11 +32,6 @@ func main() {
 	dev, err := device.NewChrome(*chromeURL, *authFile)
 	if err != nil {
 		log.Fatalf("[main] device: %v", err)
-	}
-
-	log.Printf("[main] starting cloud game...")
-	if err := dev.Start(nil); err != nil {
-		log.Fatalf("[main] navigate: %v", err)
 	}
 
 	// Graceful shutdown on SIGINT/SIGTERM

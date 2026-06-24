@@ -62,14 +62,6 @@ func New(dev device.Device, cfg Config) *Server {
 	s.mux.HandleFunc("/api/v1/app/restart", s.handleV1AppRestart)
 	s.mux.HandleFunc("/api/v1/session/reset", s.handleV1SessionReset)
 
-	// Compat aliases (deprecated, mapped to v1)
-	s.mux.HandleFunc("/api/click", s.handleCompatClick)
-	s.mux.HandleFunc("/api/swipe", s.handleCompatSwipe)
-	s.mux.HandleFunc("/api/screenshot", s.handleCompatScreenshot)
-	s.mux.HandleFunc("/api/navigate", s.handleCompatNavigate)
-	s.mux.HandleFunc("/api/dismiss", s.handleCompatDismiss)
-	s.mux.HandleFunc("/api/health", s.handleCompatHealth)
-
 	return s
 }
 
@@ -225,8 +217,14 @@ func (s *Server) handleV1AppStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", 405)
 		return
 	}
-	err := s.dev.Start(r.Context())
-	if err != nil {
+	var req struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
+		http.Error(w, "missing url", 400)
+		return
+	}
+	if err := s.dev.Start(r.Context(), req.URL); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -243,8 +241,14 @@ func (s *Server) handleV1AppStop(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleV1AppRestart(w http.ResponseWriter, r *http.Request) {
-	err := s.dev.Restart(r.Context())
-	if err != nil {
+	var req struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
+		http.Error(w, "missing url", 400)
+		return
+	}
+	if err := s.dev.Restart(r.Context(), req.URL); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -258,55 +262,6 @@ func (s *Server) handleV1SessionReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Fprint(w, "ok")
-}
-
-// ── Compat aliases ──
-
-func (s *Server) handleCompatClick(w http.ResponseWriter, r *http.Request) {
-	x, _ := strconv.Atoi(r.URL.Query().Get("x"))
-	y, _ := strconv.Atoi(r.URL.Query().Get("y"))
-	if err := s.dev.Tap(r.Context(), x, y); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	fmt.Fprint(w, "ok")
-}
-
-func (s *Server) handleCompatSwipe(w http.ResponseWriter, r *http.Request) {
-	x1, _ := strconv.Atoi(r.URL.Query().Get("x1"))
-	y1, _ := strconv.Atoi(r.URL.Query().Get("y1"))
-	x2, _ := strconv.Atoi(r.URL.Query().Get("x2"))
-	y2, _ := strconv.Atoi(r.URL.Query().Get("y2"))
-	if err := s.dev.Swipe(r.Context(), x1, y1, x2, y2, 300); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	fmt.Fprint(w, "ok")
-}
-
-func (s *Server) handleCompatScreenshot(w http.ResponseWriter, r *http.Request) {
-	s.handleV1Screenshot(w, r)
-}
-
-func (s *Server) handleCompatNavigate(w http.ResponseWriter, r *http.Request) {
-	s.handleV1AppStart(w, r)
-}
-
-func (s *Server) handleCompatDismiss(w http.ResponseWriter, r *http.Request) {
-	// Special: HTML-only dismiss, not in Device interface
-	if cd, ok := s.dev.(*device.ChromeDevice); ok {
-		cd.DismissHTML()
-	}
-	fmt.Fprint(w, "ok")
-}
-
-func (s *Server) handleCompatHealth(w http.ResponseWriter, r *http.Request) {
-	status := s.dev.Health(r.Context())
-	if status.OK {
-		fmt.Fprint(w, "ok")
-	} else {
-		fmt.Fprint(w, status.State)
-	}
 }
 
 // ── WebSocket ──

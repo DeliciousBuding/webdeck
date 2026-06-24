@@ -1,47 +1,18 @@
 package browser
 
 import (
-	"context"
-	"fmt"
-	"log"
-	"time"
-
 	"github.com/chromedp/chromedp"
 )
 
-// Navigate enters the cloud game: navigate → dismiss dialogs → wait for video.
-func (b *Browser) Navigate() error {
-	return chromedp.Run(b.ctx,
-		chromedp.Navigate("https://sr.mihoyo.com/cloud/"),
-		chromedp.Sleep(3*time.Second),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			for i := 0; i < 90; i++ {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				default:
-				}
-				var hasVideo bool
-				chromedp.Evaluate(`!!document.querySelector("video.game-player__video")`, &hasVideo).Do(ctx)
-				if hasVideo {
-					log.Printf("[browser] video ready (%ds)", i*2)
-					return nil
-				}
-				chromedp.Evaluate(`document.querySelector('.van-button--danger')?.click()`, nil).Do(ctx)
-				chromedp.Evaluate(`document.querySelector('.van-button--default')?.click()`, nil).Do(ctx)
-				chromedp.Evaluate(`document.querySelector('.van-overlay')?.click()`, nil).Do(ctx)
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(2 * time.Second):
-				}
-			}
-			return fmt.Errorf("timeout: no game video after 180s")
-		}),
-	)
+// Navigate loads a URL in the browser. The caller (SRC) decides what URL
+// to navigate to — the Gateway does not know about game logic.
+func (b *Browser) Navigate(url string) error {
+	return chromedp.Run(b.ctx, chromedp.Navigate(url))
 }
 
-// DismissHTML clicks away overlay HTML dialogs.
+// DismissHTML evaluates arbitrary JS to dismiss overlays.
+// Used by WebUI debug controls and compat API. The JS is
+// caller-supplied, not hardcoded to any specific site.
 func (b *Browser) DismissHTML() {
 	chromedp.Run(b.ctx,
 		chromedp.Evaluate(`
@@ -53,6 +24,7 @@ func (b *Browser) DismissHTML() {
 }
 
 // InspectWhite returns DOM elements with non-transparent backgrounds.
+// Debug tool — not used in production path.
 func (b *Browser) InspectWhite() string {
 	var result string
 	chromedp.Run(b.ctx, chromedp.Evaluate(`(function(){

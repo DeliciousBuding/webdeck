@@ -62,14 +62,15 @@ type Device interface {
 	// Key sends a keyboard key event.
 	Key(ctx context.Context, key string) error
 
-	// Start navigates to the cloud game and enters gameplay.
-	Start(ctx context.Context) error
+	// Start navigates to the given URL. For a cloud gaming device,
+	// this is the equivalent of launching the game app on an emulator.
+	Start(ctx context.Context, url string) error
 
 	// Stop ends the game session.
 	Stop(ctx context.Context) error
 
-	// Restart stops then starts.
-	Restart(ctx context.Context) error
+	// Restart stops then starts with the same URL.
+	Restart(ctx context.Context, url string) error
 
 	// Reset kills and restarts the entire browser runtime.
 	// Used for recovering from degraded states.
