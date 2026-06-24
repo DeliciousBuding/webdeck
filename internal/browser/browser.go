@@ -29,7 +29,12 @@ func NewLocal(authFile string) (*Browser, error) {
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.Flag("disable-dev-shm-usage", true),
 		chromedp.Flag("no-sandbox", true),
-		chromedp.Flag("disable-gpu", true),
+		chromedp.Flag("headless", "new"),
+			chromedp.Flag("enable-gpu", true),
+			chromedp.Flag("use-gl", "swiftshader"),
+			chromedp.Flag("enable-webgl", true),
+			chromedp.Flag("enable-accelerated-video-decode", true),
+			chromedp.Flag("ignore-gpu-blocklist", true),
 		chromedp.WindowSize(GameW, GameH),
 		chromedp.UserAgent(mobileUA),
 	)

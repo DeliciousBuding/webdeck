@@ -100,3 +100,10 @@ func (b *Browser) Swipe(x1, y1, x2, y2 int, durationMs int) error {
 func (b *Browser) Key(k string) error {
 	return chromedp.Run(b.ctx, chromedp.KeyEvent(k))
 }
+
+// Eval runs JavaScript in the page and returns the result as JSON.
+func (b *Browser) Eval(js string) (string, error) {
+	var result string
+	err := chromedp.Run(b.ctx, chromedp.Evaluate(js, &result))
+	return result, err
+}

@@ -62,6 +62,9 @@ type Device interface {
 	// Key sends a keyboard key event.
 	Key(ctx context.Context, key string) error
 
+	// Eval executes JavaScript in the page context and returns the JSON result.
+	Eval(ctx context.Context, js string) (string, error)
+
 	// Start navigates to the given URL. For a cloud gaming device,
 	// this is the equivalent of launching the game app on an emulator.
 	Start(ctx context.Context, url string) error

@@ -120,6 +120,11 @@ func (d *ChromeDevice) Swipe(ctx context.Context, x1, y1, x2, y2, durationMs int
 }
 
 // Key sends a keyboard event.
+
+// Eval runs JavaScript in the page.
+func (d *ChromeDevice) Eval(ctx context.Context, js string) (string, error) {
+	return d.browser.Eval(js)
+}
 func (d *ChromeDevice) Key(ctx context.Context, key string) error {
 	err := d.browser.Key(key)
 	if err == nil {

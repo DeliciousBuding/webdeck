@@ -57,6 +57,7 @@ func New(dev device.Device, cfg Config) *Server {
 	s.mux.HandleFunc("/api/v1/app/stop", s.handleV1AppStop)
 	s.mux.HandleFunc("/api/v1/app/restart", s.handleV1AppRestart)
 	s.mux.HandleFunc("/api/v1/session/reset", s.handleV1SessionReset)
+	s.mux.HandleFunc("/api/v1/evaluate", s.handleV1Evaluate)
 
 	return s
 }
@@ -215,6 +216,31 @@ func (s *Server) handleV1Key(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Fprint(w, "ok")
+}
+
+func (s *Server) handleV1Evaluate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		JS string `json:"js"`
+	}
+	if r.Method == "POST" {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", 400)
+			return
+		}
+	} else {
+		req.JS = r.URL.Query().Get("js")
+	}
+	if req.JS == "" {
+		http.Error(w, "missing js", 400)
+		return
+	}
+	result, err := s.dev.Eval(r.Context(), req.JS)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, result)
 }
 
 func (s *Server) handleV1AppStart(w http.ResponseWriter, r *http.Request) {
