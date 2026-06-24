@@ -11,7 +11,7 @@ var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { retu
 
 // Cmd represents a command from the browser client.
 type Cmd struct {
-	Type string `json:"type"`          // click, swipe, key, dismiss
+	Type string `json:"type"`
 	X    int    `json:"x,omitempty"`
 	Y    int    `json:"y,omitempty"`
 	X1   int    `json:"x1,omitempty"`
@@ -52,7 +52,6 @@ func (h *Hub) remove(conn *websocket.Conn) {
 	conn.Close()
 }
 
-// HandleWS upgrades to WebSocket, sends frames, receives commands.
 func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request, onCmd CommandHandler) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -62,7 +61,6 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request, onCmd CommandHand
 	h.clients[conn] = true
 	h.mu.Unlock()
 
-	// Read commands
 	go func() {
 		defer h.remove(conn)
 		for {
@@ -70,7 +68,7 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request, onCmd CommandHand
 			if err := conn.ReadJSON(&cmd); err != nil {
 				return
 			}
-			if onCmd != nil {
+			if onCmd != nil && cmd.Type != "" && cmd.Type != "ping" {
 				onCmd(cmd)
 			}
 		}

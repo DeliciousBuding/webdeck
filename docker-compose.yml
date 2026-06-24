@@ -1,0 +1,46 @@
+# src-web-gateway — Docker Compose (debug mode)
+# Chrome + Gateway 双容器，可分别查看日志
+#
+# Debug mode (default):
+#   docker compose up --build
+#
+# Production mode (single container):
+#   docker build -t src-web-gateway . && docker run -p 8090:8090 -v ./cloud_auth.json:/app/cloud_auth.json src-web-gateway
+
+services:
+  chrome:
+    image: chromedp/headless-shell:latest
+    container_name: swg-chrome
+    ports:
+      - "9222:9222"
+    shm_size: "2gb"
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: swg-gateway
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./cloud_auth.json:/app/cloud_auth.json
+    command:
+      - "--remote=ws://chrome:9222"
+      - "--auth=cloud_auth.json"
+      - "--port=8090"
+      - "--fps=30"
+      - "--jpeg-quality=75"
+    depends_on:
+      - chrome
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
