@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SRC-Web Gateway</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;font:11px monospace;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+#bar{flex-shrink:0;display:flex;align-items:center;gap:5px;padding:3px 8px;
+  background:#111;color:#aaa;border-bottom:1px solid #222}
+#bar .g{color:#0f0}.r{color:#f44}
+#bar button{background:#222;color:#ccc;border:1px solid #444;padding:2px 7px;
+  border-radius:2px;cursor:pointer;font:10px monospace}
+#bar button.on{background:#040;border-color:#0f0;color:#0f0}
+#bar .s{color:#333}
+#wrap{flex:1;overflow:hidden;position:relative;display:flex;justify-content:center;align-items:center}
+#stream{object-fit:contain;width:100%;height:100%;cursor:crosshair}
+#cur{position:absolute;width:12px;height:12px;border:2px solid #0f0;border-radius:50%;
+  pointer-events:none;transform:translate(-50%,-50%);opacity:0;z-index:10}
+#cur.on{opacity:1}
+.r{position:absolute;border:2px solid #0f0;border-radius:50%;pointer-events:none;
+  transform:translate(-50%,-50%);animation:rip .3s ease-out forwards;z-index:9}
+@keyframes rip{to{width:50px;height:50px;border-width:0;opacity:0}}
+#act{position:absolute;bottom:3px;left:3px;color:#0f0;font:10px monospace;
+  background:rgba(0,0,0,.7);padding:2px 5px;border-radius:2px;pointer-events:none}
+</style></head><body>
+<div id="bar">
+  <span id="dot" class="g">●</span>
+  <span id="fps">--</span><span class="s">|</span>
+  <span id="pos">--</span><span class="s">|</span>
+  <button id="sbtn" onclick="togSwipe()">Slide</button>
+  <button onclick="send('dismiss')">Dismiss</button>
+  <button onclick="sendCmd('key','','','','','','Escape')">Esc</button>
+  <button onclick="sendCmd('key','','','','','','Enter')">↵</button>
+  <span class="s">|</span><span style="color:#555">Go</span>
+  <span class="s">|</span><span id="info"></span>
+</div>
+<div id="wrap">
+  <img id="stream" src="/stream">
+  <div id="cur"></div><div id="act"></div>
+</div>
+<script>
+const W=1280,H=720;
+var swiping=false,swS=null,lastF=0,fc=0;
+const im=document.getElementById("stream"),wr=document.getElementById("wrap"),
+  cur=document.getElementById("cur"),pos=document.getElementById("pos"),
+  act=document.getElementById("act"),fps=document.getElementById("fps"),
+  info=document.getElementById("info"),dot=document.getElementById("dot"),
+  sbtn=document.getElementById("sbtn");
+
+// WebSocket for commands
+const ws = new WebSocket('ws://'+location.host+'/ws');
+ws.onopen = () => dot.className = 'g';
+ws.onclose = () => dot.className = 'r';
+function sendCmd(type,x,y,x1,y1,x2,y2,key){
+  ws.send(JSON.stringify({type:type,x:x||0,y:y||0,x1:x1||0,y1:y1||0,x2:x2||0,y2:y2||0,key:key||''}));
+  info.textContent = type + (x?`(${x},${y})`:'')+' ✓';
+  setTimeout(()=>info.textContent='',1000);
+}
+function send(type){ws.send(JSON.stringify({type:type}));info.textContent=type+' ✓';}
+
+// Coordinate mapping
+function gc(e){const r=im.getBoundingClientRect();return{x:Math.round((e.clientX-r.left)/r.width*W),y:Math.round((e.clientY-r.top)/r.height*H)};}
+function ok(g){return g.x>=0&&g.y>=0&&g.x<=W&&g.y<=H;}
+
+// Mouse
+wr.addEventListener("mousemove",e=>{
+  const g=gc(e),r=wr.getBoundingClientRect();
+  cur.style.left=(e.clientX-r.left)+"px";cur.style.top=(e.clientY-r.top)+"px";
+  if(ok(g)){cur.classList.add("on");pos.textContent=g.x+","+g.y;}else cur.classList.remove("on");
+});
+wr.addEventListener("mouseleave",()=>cur.classList.remove("on"));
+
+function rip(e){const d=document.createElement("div"),r=wr.getBoundingClientRect();
+  d.className="r";d.style.left=(e.clientX-r.left)+"px";d.style.top=(e.clientY-r.top)+"px";
+  wr.appendChild(d);setTimeout(()=>d.remove(),300);}
+
+// Click
+wr.addEventListener("click",e=>{if(swiping)return;const g=gc(e);if(!ok(g))return;rip(e);sendCmd("click",g.x,g.y);act.textContent="("+g.x+","+g.y+")";});
+
+// Swipe
+function togSwipe(){swiping=!swiping;sbtn.classList.toggle("on",swiping);}
+wr.addEventListener("mousedown",e=>{if(!swiping)return;swS=gc(e);});
+wr.addEventListener("mouseup",e=>{if(!swiping||!swS)return;const g=gc(e);
+  if(Math.abs(g.x-swS.x)<6&&Math.abs(g.y-swS.y)<6)sendCmd("click",g.x,g.y);
+  else sendCmd("swipe",0,0,swS.x,swS.y,g.x,g.y);swS=null;});
+
+// Keyboard
+document.addEventListener("keydown",e=>{if(e.target.tagName==="BUTTON")return;sendCmd("key","","","","","",e.key);e.preventDefault();});
+
+// FPS
+var lastT=performance.now();
+im.addEventListener("load",()=>{const n=performance.now(),dt=n-lastT;lastT=n;fc++;if(fc%10===0)fps.textContent=Math.round(1000/dt)+"fps";});
+</script></body></html>
