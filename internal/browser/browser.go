@@ -82,6 +82,7 @@ func (b *Browser) Close() {
 	b.alive.Store(false)
 	if b.cancel != nil {
 		b.cancel()
+		b.cancel = nil
 	}
 }
 

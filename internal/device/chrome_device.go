@@ -65,8 +65,8 @@ func (d *ChromeDevice) Health(ctx context.Context) HealthStatus {
 	d.mu.Lock()
 	state := d.state
 	recover := d.recover
-	frameAge := time.Since(d.lastFrameTime)
-	inputAge := time.Since(d.lastInputTime)
+	frameAge := time.Since(d.lastFrameTime).Milliseconds()
+	inputAge := time.Since(d.lastInputTime).Milliseconds()
 	d.mu.Unlock()
 	return HealthStatus{
 		OK:           state == "RUNNING",

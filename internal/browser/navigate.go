@@ -13,21 +13,30 @@ import (
 func (b *Browser) Navigate() error {
 	return chromedp.Run(b.ctx,
 		chromedp.Navigate("https://sr.mihoyo.com/cloud/"),
-		chromedp.Sleep(5*time.Second),
+		chromedp.Sleep(3*time.Second),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			for i := 0; i < 90; i++ {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
 				var hasVideo bool
 				chromedp.Evaluate(`!!document.querySelector("video.game-player__video")`, &hasVideo).Do(ctx)
 				if hasVideo {
-					log.Printf("[browser] video ready (%ds)", i)
+					log.Printf("[browser] video ready (%ds)", i*2)
 					return nil
 				}
 				chromedp.Evaluate(`document.querySelector('.van-button--danger')?.click()`, nil).Do(ctx)
 				chromedp.Evaluate(`document.querySelector('.van-button--default')?.click()`, nil).Do(ctx)
 				chromedp.Evaluate(`document.querySelector('.van-overlay')?.click()`, nil).Do(ctx)
-				time.Sleep(2 * time.Second)
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(2 * time.Second):
+				}
 			}
-			return fmt.Errorf("timeout: no game video")
+			return fmt.Errorf("timeout: no game video after 180s")
 		}),
 	)
 }

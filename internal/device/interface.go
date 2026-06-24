@@ -5,7 +5,6 @@ package device
 
 import (
 	"context"
-	"time"
 )
 
 // DeviceInfo describes the virtual device's coordinate system and capabilities.
@@ -27,8 +26,8 @@ type HealthStatus struct {
 	ChromeAlive     bool          `json:"chrome_alive"`
 	CDPConnected    bool          `json:"cdp_connected"`
 	PageReady       bool          `json:"page_ready"`
-	LastFrameAge    time.Duration `json:"last_frame_age_ms"`
-	LastInputAge    time.Duration `json:"last_input_age_ms"`
+	LastFrameAge    int64 `json:"last_frame_age_ms"`
+	LastInputAge    int64 `json:"last_input_age_ms"`
 	RecoverCount    int           `json:"recover_count"`
 }
 

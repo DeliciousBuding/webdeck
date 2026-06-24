@@ -102,10 +102,7 @@ src-web-gateway/
 ## 六、编译状态
 
 ```bash
-# 目前有 2 个编译错误：
-# 1. internal/browser/cookies.go — 缺少 "context" import (已修)
-# 2. internal/browser/browser.go — 未使用的 "log" import (已修)
-# 修复后应该能编译
+# ✅ 编译通过，go vet 净空
 cd D:/Code/Projects/src-web-gateway
 go build -o gw.exe ./cmd/gateway/
 ```

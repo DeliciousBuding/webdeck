@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -80,7 +81,7 @@ func (s *Server) Start() error {
 		log.Printf("[server] capture %d FPS, JPEG Q%d", s.cfg.FPS, s.cfg.JPEGQ)
 		for {
 			t0 := time.Now()
-			jpeg, err := s.dev.Screenshot(nil, device.ScreenshotOptions{
+			jpeg, err := s.dev.Screenshot(context.Background(), device.ScreenshotOptions{
 				Format: "jpeg", Quality: s.cfg.JPEGQ,
 			})
 			if err != nil {
@@ -242,7 +243,10 @@ func (s *Server) handleV1SessionReset(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCompatClick(w http.ResponseWriter, r *http.Request) {
 	x, _ := strconv.Atoi(r.URL.Query().Get("x"))
 	y, _ := strconv.Atoi(r.URL.Query().Get("y"))
-	s.dev.Tap(r.Context(), x, y)
+	if err := s.dev.Tap(r.Context(), x, y); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	fmt.Fprint(w, "ok")
 }
 
@@ -251,7 +255,10 @@ func (s *Server) handleCompatSwipe(w http.ResponseWriter, r *http.Request) {
 	y1, _ := strconv.Atoi(r.URL.Query().Get("y1"))
 	x2, _ := strconv.Atoi(r.URL.Query().Get("x2"))
 	y2, _ := strconv.Atoi(r.URL.Query().Get("y2"))
-	s.dev.Swipe(r.Context(), x1, y1, x2, y2, 300)
+	if err := s.dev.Swipe(r.Context(), x1, y1, x2, y2, 300); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	fmt.Fprint(w, "ok")
 }
 
