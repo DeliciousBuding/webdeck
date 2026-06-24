@@ -122,6 +122,16 @@ func (b *Browser) Navigate() error {
 				chromedp.Evaluate(`!!document.querySelector("video.game-player__video")`, &hasVideo).Do(ctx)
 				if hasVideo {
 					log.Printf("[browser] game video ready (%ds)", i*2)
+
+					// Inject CSS to fix the white slide/page background
+				chromedp.Evaluate(`(function(){
+					var s=document.createElement('style');
+					s.id='src-web-fix';
+					s.textContent='html,body{background:#000!important}'+
+						'.game-player,.game-player>*,video.game-player__video{width:100%!important;height:100%!important;object-fit:contain!important;position:absolute!important;top:0!important;left:0!important;background:#000!important;margin:0!important;padding:0!important}';
+					document.head.appendChild(s);
+				})()`, nil).Do(ctx)
+
 					return nil
 				}
 				chromedp.Evaluate(`document.querySelector('.van-button--danger')?.click()`, nil).Do(ctx)
